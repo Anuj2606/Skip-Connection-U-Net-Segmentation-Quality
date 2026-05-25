@@ -128,8 +128,8 @@ The project includes:
 ## Clone Repository
 
 ```bash
-git clone https://github.com/your-username/repository-name.git
-cd repository-name
+git clone https://github.com/Anuj2606/Skip-Connection-U-Net-Segmentation-Quality.git
+cd Skip-Connection-U-Net-Segmentation-Quality
 ```
 
 ---
