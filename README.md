@@ -123,11 +123,4 @@ jupyter notebook Skip_Connection_Impact_Study_on_U_Net_Segmentation_Quality.ipyn
 
 ---
 
-## 👨‍💻 Author
-
-**Anuj Sawant**
-[GitHub](https://github.com/Anuj2606)
-
----
-
 <p align="center"><i>Built to understand U-Net, not just to use it.</i></p>
