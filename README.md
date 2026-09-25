@@ -29,6 +29,25 @@ U-Net's answer is the **skip connection**: it routes high-resolution features fr
 
 ---
 
+## 🧠 Core Concepts
+
+**Semantic segmentation** assigns a class label to every pixel in an image. In this project, each pixel is classified as background, foreground, or boundary so the model can produce a complete pet segmentation mask.
+
+**U-Net** is an encoder-decoder segmentation architecture. The encoder downsamples the image to learn deeper features, while the decoder upsamples those features to reconstruct a pixel-level prediction.
+
+**Skip connections** link encoder feature maps to decoder layers at the same spatial resolution. They give the decoder access to fine details such as edges and object boundaries that may be lost in the bottleneck. The project tests their contribution by comparing the U-Net with a baseline encoder-decoder that has no such connections.
+
+**Loss functions and metrics:** The project uses the following measures:
+
+- **Cross-Entropy Loss:** Measures pixel-level classification error. It increases when the model assigns the wrong class to a pixel. Lower values are better.
+- **Dice Score:** Measures the overlap between the predicted mask and the ground-truth mask. It ranges from 0 to 1, where 1 means a perfect overlap. Higher values are better.
+- **Dice Loss:** Used during training and calculated as `1 - Dice Score`. It encourages the model to improve the overlap between predicted and target regions. Lower values are better.
+- **Mean IoU:** Mean Intersection over Union measures the intersection between the predicted and target regions divided by their union. Higher values indicate better segmentation quality.
+
+Cross-Entropy focuses on classifying each pixel correctly, while Dice Loss focuses on the overlap of the complete segmentation region. The combined Dice + Cross-Entropy loss uses both objectives.
+
+---
+
 ## 🏗️ Model Architectures
 
 ### 1. SimpleEncoderDecoder — Baseline (No Skip Connections)
@@ -72,7 +91,7 @@ The notebook uses the `trainval` split for training and the `test` split for eva
 | Data Loading | PyTorch `DataLoader` |
 | Tracked Metrics | Training loss, Mean IoU, Dice score, and qualitative output comparison |
 
-The baseline and initial U-Net comparison runs for 3 epochs. The notebook also defines a `DiceCELoss` that combines Cross-Entropy with a soft Dice loss and trains an additional U-Net model for 5 epochs to improve overlap-based segmentation quality. A parallel evaluation loader uses batch size 32, two workers, and pinned memory.
+The baseline and initial U-Net comparison run for 3 epochs with Cross-Entropy loss. The notebook then defines a `DiceCELoss` that combines Cross-Entropy with a soft Dice loss and trains a separate U-Net model for 5 epochs. A parallel evaluation loader uses batch size 32, two workers, and pinned memory.
 
 ---
 
@@ -81,13 +100,14 @@ The baseline and initial U-Net comparison runs for 3 epochs. The notebook also d
 | Model | Final Training Loss | Mean IoU | Dice Score |
 |---|---|---|---|
 | SimpleEncoderDecoder (no skip) | 0.7461 | 0.3441 | 0.4451 |
-| U-Net (with skip) | 0.6224 | 0.4879 | 0.6173 |
+| U-Net (with skip, Cross-Entropy) | 0.6224 | 0.4879 | 0.6173 |
+| U-Net (with skip, Dice + Cross-Entropy) | 0.9615 | 0.5592 | 0.6890 |
 
-The initial comparison used Cross-Entropy loss for 3 epochs. The notebook also reports the combined Dice + Cross-Entropy U-Net training loss decreasing from `1.4266` to `0.9615` over 5 epochs.
+The initial architecture comparison used Cross-Entropy loss for 3 epochs. The separate Dice + Cross-Entropy experiment trained a U-Net for 5 epochs, with the combined loss decreasing from `1.4266` to `0.9615`. In the recorded evaluation, this configuration achieved the strongest Mean IoU and Dice Score of the three runs.
 
 The notebook generates qualitative 3×4 comparison figures containing the input image, ground-truth mask, SimpleEncoderDecoder prediction, and U-Net prediction for each of three test examples.
 
-**Takeaway:** in the recorded evaluation, the U-Net improves Mean IoU from `0.3441` to `0.4879` and Dice score from `0.4451` to `0.6173` over the no-skip baseline, demonstrating that skip connections preserve spatial information and produce more accurate segmentation masks.
+**Takeaway:** in the recorded evaluation, adding skip connections improved Mean IoU from `0.3441` to `0.4879` and Dice score from `0.4451` to `0.6173` over the no-skip baseline. Adding Dice loss to Cross-Entropy improved the separately trained U-Net result further to `0.5592` Mean IoU and `0.6890` Dice Score. These results support the role of skip connections in preserving spatial information and show the benefit of an overlap-aware loss in this experiment.
 
 ---
 
