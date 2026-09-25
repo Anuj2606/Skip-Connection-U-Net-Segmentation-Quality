@@ -23,7 +23,7 @@ U-Net's answer is the **skip connection**: it routes high-resolution features fr
 ## 🎯 Objectives
 
 - Quantify what skip connections actually buy you in segmentation quality — not just cite that they help
-- Compare a bottleneck-only encoder-decoder against a U-Net with a ResNet18 encoder, under matched training conditions
+- Compare a bottleneck-only encoder-decoder against a compact convolutional U-Net, under matched training conditions
 - Visualize *where* spatial information is lost during downsampling and *how* skip connections recover it
 - Practice a proper ML ablation methodology: change one variable, hold everything else constant
 
@@ -31,23 +31,23 @@ U-Net's answer is the **skip connection**: it routes high-resolution features fr
 
 ## 🏗️ Model Architectures
 
-### 1. SimpleSegNet — Baseline (No Skip Connections)
+### 1. SimpleEncoderDecoder — Baseline (No Skip Connections)
 
 ```text
 Input → Encoder (downsampling) → Bottleneck → Decoder (upsampling) → Output
 ```
-A standard encoder-decoder with no shortcut paths. All spatial information must survive the bottleneck.
+A standard encoder-decoder with no shortcut paths. The encoder uses 3→64 and 64→128 convolutional blocks with ReLU activations and 2×2 max pooling. The decoder uses transposed convolutions to upsample from the bottleneck to three output classes. All spatial information must survive the bottleneck.
 
 ### 2. U-Net — With Skip Connections
 
 ```text
-Input → Encoder (ResNet18) → Bottleneck
+Input → Encoder → Bottleneck
                  │                │
                  └── Skip ────────┘ (per resolution level)
                                    ↓
                               Decoder → Output
 ```
-Encoder features at each resolution are concatenated into the corresponding decoder layer before upsampling, preserving spatial detail the bottleneck alone would lose.
+This is a compact U-Net implemented directly in PyTorch. Two convolutional encoder blocks expand the channels from 3→64→128, followed by a 256-channel bottleneck. Transposed-convolution decoder blocks concatenate encoder features at matching resolutions before convolution, preserving spatial detail the bottleneck alone would lose. Both models produce logits for the same three segmentation classes.
 
 **Both models were trained under identical conditions** — same dataset split, loss function, optimizer, and epochs — so any difference in output is attributable to the architecture change, not training variance.
 
@@ -57,6 +57,8 @@ Encoder features at each resolution are concatenated into the corresponding deco
 
 **[Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.uk/~vgg/data/pets/)** — pet images paired with pixel-wise segmentation masks (foreground/background/boundary).
 
+The notebook uses the `trainval` split for training and the `test` split for evaluation. Images are resized to `128 × 128` and converted to tensors. Segmentation masks use nearest-neighbor resizing to preserve class labels, are converted from PIL images to tensors, and are remapped from the dataset values `{1, 2, 3}` to zero-indexed class labels `{0, 1, 2}`.
+
 ---
 
 ## ⚙️ Training Setup
@@ -64,28 +66,34 @@ Encoder features at each resolution are concatenated into the corresponding deco
 | Component | Choice |
 |---|---|
 | Loss Function | CrossEntropyLoss |
-| Optimizer | Adam |
+| Optimizer | Adam (`lr=1e-3`) |
+| Batch Size | 16 for training and initial evaluation |
+| Training Device | CUDA GPU when available; Google Colab NVIDIA T4 in the notebook |
 | Data Loading | PyTorch `DataLoader` |
-| Tracked Metrics | Training loss curves, qualitative output comparison |
+| Tracked Metrics | Training loss, Mean IoU, Dice score, and qualitative output comparison |
+
+The baseline and initial U-Net comparison runs for 3 epochs. The notebook also defines a `DiceCELoss` that combines Cross-Entropy with a soft Dice loss and trains an additional U-Net model for 5 epochs to improve overlap-based segmentation quality. A parallel evaluation loader uses batch size 32, two workers, and pinned memory.
 
 ---
 
 ## 📊 Results
 
-| Model | Training Loss | Spatial Detail | Boundary Sharpness |
+| Model | Final Training Loss | Mean IoU | Dice Score |
 |---|---|---|---|
-| SimpleSegNet (no skip) | Higher | Blurred, loses fine structure | Soft / imprecise |
-| U-Net (with skip) | Lower | Preserved | Sharp |
+| SimpleEncoderDecoder (no skip) | 0.7461 | 0.3441 | 0.4451 |
+| U-Net (with skip) | 0.6224 | 0.4879 | 0.6173 |
 
-> **Note for repo maintainer:** replace the qualitative claims above with your actual final loss values (e.g. a table of final-epoch loss per model) and drop in 2–3 side-by-side output images here. Recruiters and reviewers weight a results section with real numbers and pictures far more heavily than one with adjectives — this is the single highest-leverage edit you can make to this README before sharing the repo.
+The initial comparison used Cross-Entropy loss for 3 epochs. The notebook also reports the combined Dice + Cross-Entropy U-Net training loss decreasing from `1.4266` to `0.9615` over 5 epochs.
 
-**Takeaway:** the U-Net's skip connections measurably reduce information loss through the bottleneck, producing sharper, more spatially accurate segmentation masks than the same network without them.
+The notebook generates qualitative 3×4 comparison figures containing the input image, ground-truth mask, SimpleEncoderDecoder prediction, and U-Net prediction for each of three test examples.
+
+**Takeaway:** in the recorded evaluation, the U-Net improves Mean IoU from `0.3441` to `0.4879` and Dice score from `0.4451` to `0.6173` over the no-skip baseline, demonstrating that skip connections preserve spatial information and produce more accurate segmentation masks.
 
 ---
 
 ## 🛠️ Tech Stack
 
-`Python` · `PyTorch` · `Torchvision` · `segmentation-models-pytorch` · `Matplotlib`
+`Python` · `PyTorch` · `Torchvision` · `Matplotlib`
 
 ---
 
@@ -97,10 +105,10 @@ git clone https://github.com/Anuj2606/Skip-Connection-U-Net-Segmentation-Quality
 cd Skip-Connection-U-Net-Segmentation-Quality
 
 # Install dependencies
-pip install torch torchvision matplotlib segmentation-models-pytorch
+pip install torch torchvision matplotlib
 
 # Run
-jupyter notebook Skip_Connection_Impact_Study_on_U_Net_Segmentation_Quality.ipynb
+jupyter notebook Skip_Connections_in_U_Net_A_Segmentation_Ablation_Study.ipynb
 ```
 
 ---
@@ -110,13 +118,14 @@ jupyter notebook Skip_Connection_Impact_Study_on_U_Net_Segmentation_Quality.ipyn
 - How to structure an ML ablation study — isolate one architectural variable and hold the rest constant
 - Practical implementation of U-Net and skip-connection mechanics in PyTorch
 - Why the encoder-decoder bottleneck is a spatial-information bottleneck, concretely, not just in theory
-- End-to-end deep learning workflow: data loading → training → loss tracking → qualitative evaluation
+- End-to-end deep learning workflow: data loading → mask preprocessing → training → loss tracking → IoU/Dice evaluation → qualitative evaluation
+- How combining Cross-Entropy with Dice loss can align optimization more closely with segmentation overlap quality
 
 ---
 
 ## 🔮 Future Improvements
 
-- [ ] Add quantitative segmentation metrics (Dice coefficient, IoU) — currently the comparison is loss + visual only
+- [ ] Add per-class and validation-set reporting for quantitative segmentation metrics
 - [ ] Train on a larger, more diverse dataset
 - [ ] Add stronger augmentation to test robustness of each architecture
 - [ ] Extend the ablation to other architectural variants (e.g. attention gates, deep supervision)
