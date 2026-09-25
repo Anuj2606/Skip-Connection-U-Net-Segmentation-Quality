@@ -7,7 +7,7 @@
 <h1 align="center">🧩 Skip Connections in U-Net: An Ablation Study on Segmentation Quality</h1>
 
 <p align="center">
-  <b>A controlled comparison of a plain encoder-decoder network against a U-Net with skip connections, to isolate exactly what skip connections contribute to segmentation quality.</b>
+  <b>A comparative study of a baseline encoder-decoder and U-Net with skip connections for semantic segmentation, with an additional evaluation of Cross-Entropy vs Dice + Cross-Entropy loss.</b>
 </p>
 
 ---
@@ -16,7 +16,7 @@
 
 Encoder-decoder networks compress an image down to a low-resolution feature map and then upsample it back to full size. That compression step is lossy — fine spatial detail (edges, thin structures, boundaries) gets destroyed on the way down and can't be recovered on the way up from a bottleneck alone.
 
-U-Net's answer is the **skip connection**: it routes high-resolution features from the encoder directly to the matching decoder layer, bypassing the bottleneck entirely. This project doesn't just implement that idea — it **isolates and measures it**, by training an identical architecture with and without skip connections and comparing the outputs directly.
+U-Net's answer is the **skip connection**: it routes high-resolution features from the encoder directly to the matching decoder layer, bypassing the bottleneck entirely. This project compares a baseline encoder-decoder with a compact U-Net to evaluate how skip connections affect segmentation performance under the same dataset and training setup.
 
 ---
 
@@ -68,7 +68,7 @@ Input → Encoder → Bottleneck
 ```
 This is a compact U-Net implemented directly in PyTorch. Two convolutional encoder blocks expand the channels from 3→64→128, followed by a 256-channel bottleneck. Transposed-convolution decoder blocks concatenate encoder features at matching resolutions before convolution, preserving spatial detail the bottleneck alone would lose. Both models produce logits for the same three segmentation classes.
 
-**Both models were trained under identical conditions** — same dataset split, loss function, optimizer, and epochs — so any difference in output is attributable to the architecture change, not training variance.
+The baseline and U-Net models were evaluated using the same dataset, preprocessing, optimizer, and training setup, with the architecture change being the main comparison point.
 
 ---
 
@@ -84,30 +84,37 @@ The notebook uses the `trainval` split for training and the `test` split for eva
 
 | Component | Choice |
 |---|---|
-| Loss Function | CrossEntropyLoss |
+| Dataset | Oxford-IIIT Pet Dataset |
+| Image Size | 128 × 128 |
+| Batch Size | 16 |
+| Number of Classes | 3 |
 | Optimizer | Adam (`lr=1e-3`) |
-| Batch Size | 16 for training and initial evaluation |
-| Training Device | CUDA GPU when available; Google Colab NVIDIA T4 in the notebook |
-| Data Loading | PyTorch `DataLoader` |
-| Tracked Metrics | Training loss, Mean IoU, Dice score, and qualitative output comparison |
+| Maximum Epochs | 30 |
+| Early Stopping Patience | 5 |
+| Training Device | CUDA when available |
+| Metrics | Mean IoU and Dice Score |
+| Losses | Cross-Entropy and Dice + Cross-Entropy |
 
-The baseline and initial U-Net comparison run for 3 epochs with Cross-Entropy loss. The notebook then defines a `DiceCELoss` that combines Cross-Entropy with a soft Dice loss and trains a separate U-Net model for 5 epochs. A parallel evaluation loader uses batch size 32, two workers, and pinned memory.
+The final Colab implementation is a compact convolutional U-Net implemented directly in PyTorch. It is not a ResNet18-based U-Net. Training and validation loss curves and prediction visualizations were used for qualitative analysis alongside the reported Mean IoU and Dice Score metrics.
 
 ---
 
 ## 📊 Results
 
-| Model | Final Training Loss | Mean IoU | Dice Score |
-|---|---|---|---|
-| SimpleEncoderDecoder (no skip) | 0.7461 | 0.3441 | 0.4451 |
-| U-Net (with skip, Cross-Entropy) | 0.6224 | 0.4879 | 0.6173 |
-| U-Net (with skip, Dice + Cross-Entropy) | 0.9615 | 0.5592 | 0.6890 |
+| Model | Mean IoU | Dice Score |
+|---|---:|---:|
+| Baseline Encoder-Decoder | 0.4487 | 0.5902 |
+| U-Net + Cross-Entropy | 0.6538 | 0.7756 |
+| U-Net + Dice + Cross-Entropy | 0.6564 | 0.7787 |
 
-The initial architecture comparison used Cross-Entropy loss for 3 epochs. The separate Dice + Cross-Entropy experiment trained a U-Net for 5 epochs, with the combined loss decreasing from `1.4266` to `0.9615`. In the recorded evaluation, this configuration achieved the strongest Mean IoU and Dice Score of the three runs.
+**Observation:** The U-Net achieved substantially higher segmentation performance than the baseline encoder-decoder. Adding Dice Loss to Cross-Entropy provided a small additional improvement.
 
-The notebook generates qualitative 3×4 comparison figures containing the input image, ground-truth mask, SimpleEncoderDecoder prediction, and U-Net prediction for each of three test examples.
+- **U-Net vs Baseline Mean IoU:** 45.73% improvement
+- **U-Net vs Baseline Dice Score:** 31.43% improvement
+- **Dice + Cross-Entropy vs Cross-Entropy Mean IoU:** 0.40% improvement
+- **Dice + Cross-Entropy vs Cross-Entropy Dice Score:** 0.40% improvement
 
-**Takeaway:** in the recorded evaluation, adding skip connections improved Mean IoU from `0.3441` to `0.4879` and Dice score from `0.4451` to `0.6173` over the no-skip baseline. Adding Dice loss to Cross-Entropy improved the separately trained U-Net result further to `0.5592` Mean IoU and `0.6890` Dice Score. These results support the role of skip connections in preserving spatial information and show the benefit of an overlap-aware loss in this experiment.
+For the loss comparison, the absolute differences were **+0.0026 Mean IoU** and **+0.0031 Dice Score**.
 
 ---
 
@@ -135,11 +142,11 @@ jupyter notebook Skip_Connections_in_U_Net_A_Segmentation_Ablation_Study.ipynb
 
 ## 🧠 Key Learnings
 
-- How to structure an ML ablation study — isolate one architectural variable and hold the rest constant
-- Practical implementation of U-Net and skip-connection mechanics in PyTorch
-- Why the encoder-decoder bottleneck is a spatial-information bottleneck, concretely, not just in theory
-- End-to-end deep learning workflow: data loading → mask preprocessing → training → loss tracking → IoU/Dice evaluation → qualitative evaluation
-- How combining Cross-Entropy with Dice loss can align optimization more closely with segmentation overlap quality
+- U-Net and skip-connection implementation in PyTorch
+- Preservation of spatial information in segmentation models
+- Mean IoU and Dice evaluation for model comparison
+- Loss-function comparison between Cross-Entropy and Dice + Cross-Entropy
+- End-to-end segmentation workflow from data prep to evaluation
 
 ---
 
